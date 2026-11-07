@@ -54,7 +54,46 @@
       -webkit-user-select: none;
       transition: background 0.1s;
       padding: 16px;
+      position: relative;       /* damit die Zielscheibe darin Platz findet */
+      overflow: hidden;
     }
+
+    /* Die Zielscheibe (nur im Zielscheiben-Modus) */
+    #ziel {
+      position: absolute;
+      width: 70px;
+      height: 70px;
+      border-radius: 50%;
+      background: radial-gradient(circle,
+        #d83b3b 0 18%, white 18% 36%, #d83b3b 36% 54%, white 54% 72%, #d83b3b 72% 100%);
+      box-shadow: 0 0 0 3px white;
+      display: none;
+      cursor: crosshair;
+    }
+
+    /* Im Zielscheiben-Modus werden die Texte versteckt, sobald die Scheibe da ist */
+    #spielfeld.zielAktiv p { visibility: hidden; }
+
+    /* Knöpfe zur Auswahl des Modus */
+    .modusKnoepfe {
+      display: flex;
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .modusKnopf {
+      flex: 1;
+      background: #1e2a3a;
+      color: white;
+      border: 2px solid #3b6fd8;
+      border-radius: 14px;
+      padding: 16px 8px;
+      font-size: 1.1rem;
+      cursor: pointer;
+    }
+
+    .modusKnopf:hover { background: #3b6fd8; }
+    .modusKnopf span { display: block; font-size: 2rem; margin-bottom: 6px; }
 
     #grosserText {
       font-size: 2.4rem;
@@ -208,13 +247,15 @@
        Hier stehen die Texte, die man auf der Seite sieht. -->
   <h1>⚡ Reaktionsspiel ⚡</h1>
   <p class="untertitel">
-    Hallo <strong id="spielerName">…</strong>! Wie schnell bist du wirklich?
+    Hallo <strong id="spielerName">…</strong>! Modus: <strong id="modusAnzeige">…</strong>
     <button id="nameAendern">Name ändern</button>
+    <button id="modusAendern">Modus wechseln</button>
   </p>
 
   <div id="spielfeld" class="start">
     <p id="grosserText">Klick zum Starten</p>
     <p id="kleinerText">Warte, bis das Feld GRÜN wird, dann klick so schnell du kannst!</p>
+    <div id="ziel"></div>
   </div>
 
   <div class="punkte">
@@ -223,7 +264,7 @@
       <ol class="liste" id="meineTop3"></ol>
     </div>
     <div class="kasten">
-      <h2>🌍 Rangliste</h2>
+      <h2 id="ranglisteTitel">🌍 Rangliste</h2>
       <ol class="liste" id="top5"></ol>
       <button class="knopf" id="ganzeRanglisteKnopf">Ganze Rangliste</button>
     </div>
@@ -245,10 +286,22 @@
     </div>
   </div>
 
+  <!-- Fenster: Modus auswählen -->
+  <div class="overlay" id="modusFenster">
+    <div class="fenster">
+      <h2>Welchen Modus willst du spielen?</h2>
+      <p class="klein">Jeder Modus hat seine eigene Rangliste.</p>
+      <div class="modusKnoepfe">
+        <button class="modusKnopf" id="modusNormal"><span>⚡</span>Normal</button>
+        <button class="modusKnopf" id="modusZiel"><span>🎯</span>Zielscheibe</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Fenster: die ganze Rangliste -->
   <div class="overlay" id="ranglisteFenster">
     <div class="fenster">
-      <h2>🌍 Ganze Rangliste</h2>
+      <h2 id="ganzeRanglisteTitel">🌍 Ganze Rangliste</h2>
       <ol class="liste" id="ganzeRangliste"></ol>
       <button class="knopf" id="ranglisteZu">Schließen</button>
     </div>
@@ -279,13 +332,19 @@
     const ranglisteFenster = document.getElementById("ranglisteFenster");
     const nameEingabe = document.getElementById("nameEingabe");
     const nameFehler  = document.getElementById("nameFehler");
+    const modusFenster = document.getElementById("modusFenster");
+    const ziel = document.getElementById("ziel");
 
     // ---------- Zustand des Spiels ----------
     let zustand = "start";   // "start", "warten", "jetzt" oder "fehler"
     let startZeit = 0;       // wann das Feld grün wurde
     let timer = null;        // der Countdown bis grün
     let meinName = lesen("spielername", "");
-    let meineZeiten = lesen("meineZeiten", []);   // meine 3 besten Zeiten
+    let modus = lesen("modus", "");               // "normal" oder "ziel"
+    let meineZeiten = lesen(zeitenSchluessel(), []);   // meine 3 besten Zeiten
+
+    // Jeder Modus hat seine eigene Liste mit meinen Zeiten
+    function zeitenSchluessel() { return "meineZeiten_" + (modus || "normal"); }
 
     // ---------- Speichern im Browser (nur dieses Gerät) ----------
     function lesen(schluessel, standard) {
@@ -308,20 +367,22 @@
             "Content-Type": "application/json",
             "Prefer": "return=minimal"
           },
-          body: JSON.stringify({ name: name, ms: ms })
+          body: JSON.stringify({ name: name, ms: ms, modus: modus })
         });
       } else {
         const alle = lesen("rangliste", []);
-        alle.push({ name: name, ms: ms });
+        alle.push({ name: name, ms: ms, modus: modus });
         schreiben("rangliste", alle);
       }
     }
 
-    // Gibt die besten Spieler zurück: jeder Name nur einmal, mit seiner Bestzeit
+    // Gibt die besten Spieler im aktuellen Modus zurück:
+    // jeder Name nur einmal, mit seiner Bestzeit
     async function ranglisteLaden(anzahl) {
       if (online) {
         const antwort = await fetch(
-          SUPABASE_URL + "/rest/v1/rangliste?select=name,ms&order=ms.asc&limit=" + anzahl,
+          SUPABASE_URL + "/rest/v1/rangliste?select=name,ms&order=ms.asc&limit=" + anzahl +
+            "&modus=eq." + modus,
           { headers: { "apikey": SUPABASE_KEY } }
         );
         if (!antwort.ok) throw new Error("Rangliste nicht erreichbar");
@@ -329,6 +390,7 @@
       }
       const beste = {};
       for (const e of lesen("rangliste", [])) {
+        if ((e.modus || "normal") !== modus) continue;
         if (!(e.name in beste) || e.ms < beste[e.name]) beste[e.name] = e.ms;
       }
       return Object.keys(beste)
@@ -369,15 +431,15 @@
     // Holt meine 3 besten Zeiten. Online kommen sie direkt aus der Rangliste,
     // damit beide Listen immer zusammenpassen.
     async function meineTop3Laden() {
-      if (!online || !meinName) return;
+      if (!online || !meinName || !modus) return;
       const antwort = await fetch(
-        SUPABASE_URL + "/rest/v1/ergebnisse?select=ms&order=ms.asc&limit=3&name=eq." +
-          encodeURIComponent(meinName),
+        SUPABASE_URL + "/rest/v1/ergebnisse?select=ms&order=ms.asc&limit=3&modus=eq." + modus +
+          "&name=eq." + encodeURIComponent(meinName),
         { headers: { "apikey": SUPABASE_KEY } }
       );
       if (!antwort.ok) return;
       meineZeiten = (await antwort.json()).map(function (e) { return e.ms; });
-      schreiben("meineZeiten", meineZeiten);
+      schreiben(zeitenSchluessel(), meineZeiten);
     }
 
     async function meineTop3Aktualisieren() {
@@ -431,13 +493,53 @@
         // Ohne Online-Rangliste fängt ein neuer Name mit einer leeren Liste an.
         // Online werden die Zeiten dieses Namens gleich aus der Rangliste geladen.
         meineZeiten = [];
-        schreiben("meineZeiten", meineZeiten);
+        schreiben("meineZeiten_normal", []);
+        schreiben("meineZeiten_ziel", []);
       }
       document.getElementById("spielerName").textContent = meinName;
       nameFenster.classList.remove("offen");
+      if (!modus) {
+        modusFenster.classList.add("offen");   // erster Besuch: jetzt den Modus wählen
+        return;
+      }
       meineTop3Aktualisieren();
       top5Zeichnen();
     }
+
+    // ---------- Modus wählen ----------
+    function modusAnzeigen() {
+      const istZiel = modus === "ziel";
+      document.getElementById("modusAnzeige").textContent = istZiel ? "🎯 Zielscheibe" : "⚡ Normal";
+      document.getElementById("ranglisteTitel").textContent =
+        istZiel ? "🎯 Rangliste Zielscheibe" : "🌍 Rangliste Normal";
+      document.getElementById("ganzeRanglisteTitel").textContent =
+        istZiel ? "🎯 Ganze Rangliste Zielscheibe" : "🌍 Ganze Rangliste Normal";
+      document.querySelector(".hinweis").textContent = istZiel
+        ? "Tipp: Wenn das Feld grün wird, triff so schnell wie möglich die Zielscheibe!"
+        : "Tipp: Am Computer kannst du auch die Leertaste drücken.";
+    }
+
+    function modusWaehlen(neuerModus) {
+      clearTimeout(timer);
+      modus = neuerModus;
+      schreiben("modus", modus);
+      meineZeiten = lesen(zeitenSchluessel(), []);
+      modusFenster.classList.remove("offen");
+      modusAnzeigen();
+      zielVerstecken();
+      zeige("start", "Klick zum Starten", modus === "ziel"
+        ? "Warte, bis das Feld GRÜN wird, dann triff die Zielscheibe!"
+        : "Warte, bis das Feld GRÜN wird, dann klick so schnell du kannst!");
+      meineTop3Zeichnen();
+      meineTop3Aktualisieren();
+      top5Zeichnen();
+    }
+
+    document.getElementById("modusNormal").addEventListener("click", function () { modusWaehlen("normal"); });
+    document.getElementById("modusZiel").addEventListener("click", function () { modusWaehlen("ziel"); });
+    document.getElementById("modusAendern").addEventListener("click", function () {
+      modusFenster.classList.add("offen");
+    });
 
     document.getElementById("nameOk").addEventListener("click", nameBestaetigen);
     nameEingabe.addEventListener("keydown", function (e) {
@@ -475,6 +577,7 @@
         const warteZeit = 1500 + Math.random() * 3000; // 1,5 bis 4,5 Sekunden
         timer = setTimeout(function () {
           zeige("jetzt", "JETZT!", "Klick!");
+          if (modus === "ziel") zielZeigen();
           startZeit = performance.now();
         }, warteZeit);
       }
@@ -484,12 +587,47 @@
         zeige("fehler", "Zu früh! 😅", "Klick, um es nochmal zu probieren.");
       }
       else if (zustand === "jetzt") {
-        // Reaktionszeit messen
-        const ms = Math.round(performance.now() - startZeit);
-        zeige("start", ms + " ms", bewertung(ms) + " Klick für die nächste Runde.");
-        neuesErgebnis(ms);
+        if (modus === "ziel") {
+          // Aufs Feld statt auf die Zielscheibe geklickt
+          zielVerstecken();
+          zeige("fehler", "Daneben! 🎯", "Klick, um es nochmal zu probieren.");
+        } else {
+          getroffen();
+        }
       }
     }
+
+    // Reaktionszeit messen und anzeigen
+    function getroffen() {
+      const ms = Math.round(performance.now() - startZeit);
+      zielVerstecken();
+      zeige("start", ms + " ms", bewertung(ms) + " Klick für die nächste Runde.");
+      neuesErgebnis(ms);
+    }
+
+    // ---------- Zielscheibe ----------
+    // Zeigt die Zielscheibe an einer zufälligen Stelle im Spielfeld
+    function zielZeigen() {
+      const groesse = 70;
+      const rand = 10;
+      const x = rand + Math.random() * (spielfeld.clientWidth - groesse - 2 * rand);
+      const y = rand + Math.random() * (spielfeld.clientHeight - groesse - 2 * rand);
+      ziel.style.left = x + "px";
+      ziel.style.top = y + "px";
+      ziel.style.display = "block";
+      spielfeld.classList.add("zielAktiv");
+    }
+
+    function zielVerstecken() {
+      ziel.style.display = "none";
+      spielfeld.classList.remove("zielAktiv");
+    }
+
+    // Klick auf die Zielscheibe = Treffer
+    ziel.addEventListener("pointerdown", function (e) {
+      e.stopPropagation();   // sonst zählt es auch als Klick aufs Feld
+      if (zustand === "jetzt") getroffen();
+    });
 
     // Speichert ein Ergebnis und aktualisiert die Anzeige
     async function neuesErgebnis(ms) {
@@ -497,7 +635,7 @@
       meineZeiten.push(ms);
       meineZeiten.sort(function (a, b) { return a - b; });
       meineZeiten = meineZeiten.slice(0, 3);     // nur die 3 besten behalten
-      schreiben("meineZeiten", meineZeiten);
+      schreiben(zeitenSchluessel(), meineZeiten);
       meineTop3Zeichnen();
 
       if (alteBestzeit === undefined || ms < alteBestzeit) {
@@ -519,16 +657,17 @@
     document.addEventListener("keydown", function (e) {
       if (e.code === "Space" && !document.querySelector(".overlay.offen")) {
         e.preventDefault();
+        // Im Zielscheiben-Modus muss man die Scheibe anklicken, nicht die Leertaste drücken
+        if (modus === "ziel" && zustand === "jetzt") return;
         if (!e.repeat) klick();
       }
     });
 
     // ---------- Beim Laden der Seite ----------
     document.getElementById("spielerName").textContent = meinName || "…";
-    meineTop3Zeichnen();
-    meineTop3Aktualisieren();
-    top5Zeichnen();
+    if (modus) modusWaehlen(modus);        // zeigt alles für den gespeicherten Modus an
     if (!meinName) nameFensterOeffnen();   // erster Besuch: nach dem Namen fragen
+    else if (!modus) modusFenster.classList.add("offen");   // Name da, aber noch kein Modus
   </script>
 
 </body>
