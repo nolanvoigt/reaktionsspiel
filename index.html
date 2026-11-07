@@ -340,6 +340,11 @@
     let startZeit = 0;       // wann das Feld grün wurde
     let timer = null;        // der Countdown bis grün
     let meinName = lesen("spielername", "");
+
+    // Wenn diese Zahl erhöht wird, muss jeder seinen Namen neu eintippen
+    const NAMEN_RUNDE = 2;
+    if (lesen("namenRunde", 1) !== NAMEN_RUNDE) meinName = "";
+
     let modus = lesen("modus", "");               // "normal" oder "ziel"
     let meineZeiten = lesen(zeitenSchluessel(), []);   // meine 3 besten Zeiten
 
@@ -496,6 +501,7 @@
         schreiben("meineZeiten_normal", []);
         schreiben("meineZeiten_ziel", []);
       }
+      schreiben("namenRunde", NAMEN_RUNDE);
       document.getElementById("spielerName").textContent = meinName;
       nameFenster.classList.remove("offen");
       if (!modus) {
