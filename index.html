@@ -465,11 +465,6 @@
       else if (zustand === "jetzt") {
         // Reaktionszeit messen
         const ms = Math.round(performance.now() - startZeit);
-        if (ms < 100) {
-          // Schneller als 100 ms schafft kein Mensch – das war geraten
-          zeige("fehler", "Geraten! 🤔", "So schnell kann niemand reagieren. Nochmal!");
-          return;
-        }
         zeige("start", ms + " ms", bewertung(ms) + " Klick für die nächste Runde.");
         neuesErgebnis(ms);
       }
