@@ -29,10 +29,20 @@
       margin: 0 0 20px;
     }
 
+    .untertitel button {
+      background: none;
+      border: none;
+      color: #8fb4ff;
+      text-decoration: underline;
+      cursor: pointer;
+      font-size: 0.9rem;
+      padding: 0 4px;
+    }
+
     /* Das große Feld, auf das man klickt */
     #spielfeld {
       max-width: 600px;
-      height: 320px;
+      height: 300px;
       margin: 0 auto;
       border-radius: 24px;
       display: flex;
@@ -58,17 +68,18 @@
     }
 
     /* Die verschiedenen Farben des Spielfelds */
-    .start  { background: #3b6fd8; }   /* blau  = bereit       */
-    .warten { background: #d83b3b; }   /* rot   = warten!      */
+    .start  { background: #3b6fd8; }   /* blau  = bereit        */
+    .warten { background: #d83b3b; }   /* rot   = warten!       */
     .jetzt  { background: #2fbf4a; }   /* grün  = JETZT klicken */
-    .fehler { background: #e08a1e; }   /* orange = zu früh     */
+    .fehler { background: #e08a1e; }   /* orange = zu früh      */
 
-    /* Kasten für Bestzeit und letzte Zeiten */
+    /* Die zwei Kästen unter dem Spielfeld */
     .punkte {
       max-width: 600px;
       margin: 20px auto 0;
       display: flex;
       gap: 12px;
+      align-items: flex-start;
     }
 
     .kasten {
@@ -76,31 +87,117 @@
       background: #2b3b50;
       border-radius: 16px;
       padding: 12px;
+      min-width: 0;
     }
 
     .kasten h2 {
       font-size: 1rem;
       color: #b8c4d4;
-      margin: 0 0 6px;
+      margin: 0 0 8px;
     }
 
-    #bestzeit {
-      font-size: 1.8rem;
-      font-weight: bold;
-      color: #ffd84a;
-    }
-
-    #liste {
+    /* Listen mit Platz, Name und Zeit */
+    ol.liste {
       list-style: none;
       padding: 0;
       margin: 0;
-      font-size: 1.1rem;
+      text-align: left;
     }
+
+    ol.liste li {
+      display: flex;
+      gap: 8px;
+      padding: 4px 6px;
+      border-radius: 8px;
+      font-size: 1.05rem;
+    }
+
+    ol.liste li.ich {
+      background: #3d5270;    /* dein eigener Name wird hervorgehoben */
+    }
+
+    .platz { width: 2em; flex-shrink: 0; }
+    .name  { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .zeit  { font-weight: bold; color: #ffd84a; flex-shrink: 0; }
+
+    .leer {
+      color: #8899aa;
+      font-size: 0.95rem;
+      text-align: center;
+      padding: 6px 0;
+    }
+
+    .knopf {
+      margin-top: 10px;
+      background: #3b6fd8;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      padding: 8px 14px;
+      font-size: 0.95rem;
+      cursor: pointer;
+    }
+
+    .knopf:hover { background: #4d7fe6; }
 
     .hinweis {
       color: #8899aa;
       font-size: 0.9rem;
       margin-top: 20px;
+    }
+
+    /* Fenster, die sich über das Spiel legen (Name eingeben, ganze Rangliste) */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(10, 16, 26, 0.85);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      padding: 16px;
+      z-index: 10;
+    }
+
+    .overlay.offen { display: flex; }
+
+    .fenster {
+      background: #2b3b50;
+      border-radius: 20px;
+      padding: 24px;
+      width: 100%;
+      max-width: 420px;
+      max-height: 85vh;
+      overflow-y: auto;
+    }
+
+    .fenster h2 { margin: 0 0 10px; }
+
+    .fenster input {
+      width: 100%;
+      font-size: 1.2rem;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 2px solid #3b6fd8;
+      background: #1e2a3a;
+      color: white;
+      margin: 10px 0 4px;
+      text-align: center;
+    }
+
+    #nameFehler {
+      color: #ff9a7a;
+      min-height: 1.3em;
+      font-size: 0.9rem;
+      margin: 0;
+    }
+
+    .klein { color: #b8c4d4; font-size: 0.9rem; }
+
+    /* Auf schmalen Handys die Kästen untereinander */
+    @media (max-width: 480px) {
+      .punkte { flex-direction: column; align-items: stretch; }
+      h1 { font-size: 1.8rem; }
+      #grosserText { font-size: 2rem; }
     }
   </style>
 </head>
@@ -110,7 +207,10 @@
   <!-- ===== INHALT (HTML) =====
        Hier stehen die Texte, die man auf der Seite sieht. -->
   <h1>⚡ Reaktionsspiel ⚡</h1>
-  <p class="untertitel">Wie schnell bist du wirklich?</p>
+  <p class="untertitel">
+    Hallo <strong id="spielerName">…</strong>! Wie schnell bist du wirklich?
+    <button id="nameAendern">Name ändern</button>
+  </p>
 
   <div id="spielfeld" class="start">
     <p id="grosserText">Klick zum Starten</p>
@@ -119,44 +219,216 @@
 
   <div class="punkte">
     <div class="kasten">
-      <h2>🏆 Bestzeit</h2>
-      <div id="bestzeit">–</div>
+      <h2>🏆 Deine Top 3</h2>
+      <ol class="liste" id="meineTop3"></ol>
     </div>
     <div class="kasten">
-      <h2>Letzte Versuche</h2>
-      <ul id="liste"><li>–</li></ul>
+      <h2>🌍 Rangliste</h2>
+      <ol class="liste" id="top5"></ol>
+      <button class="knopf" id="ganzeRanglisteKnopf">Ganze Rangliste</button>
     </div>
   </div>
 
   <p class="hinweis">Tipp: Am Computer kannst du auch die Leertaste drücken.</p>
 
 
+  <!-- Fenster: Namen eingeben (beim ersten Besuch) -->
+  <div class="overlay" id="nameFenster">
+    <div class="fenster">
+      <h2>👋 Willkommen!</h2>
+      <p>Wie sollen wir dich in der Rangliste nennen?</p>
+      <input id="nameEingabe" maxlength="15" placeholder="Dein Spitzname" autocomplete="off">
+      <p id="nameFehler"></p>
+      <p class="klein">Tipp: Nimm einen <strong>Spitznamen</strong>, nicht deinen echten Namen.
+        Die Rangliste kann jeder sehen.</p>
+      <button class="knopf" id="nameOk">Los geht's!</button>
+    </div>
+  </div>
+
+  <!-- Fenster: die ganze Rangliste -->
+  <div class="overlay" id="ranglisteFenster">
+    <div class="fenster">
+      <h2>🌍 Ganze Rangliste</h2>
+      <ol class="liste" id="ganzeRangliste"></ol>
+      <button class="knopf" id="ranglisteZu">Schließen</button>
+    </div>
+  </div>
+
+
   <!-- ===== LOGIK (JavaScript) =====
        Hier steht, was passiert, wenn man klickt. -->
   <script>
-    // Die Teile der Seite, die wir verändern wollen
+    // ---------- ONLINE-SPEICHER (Supabase) ----------
+    // Solange diese zwei Zeilen leer sind, wird die Rangliste nur auf
+    // diesem Gerät gespeichert. Trag hier die Werte aus Supabase ein,
+    // dann sehen alle Spieler dieselbe Rangliste.
+    // (Der Schlüssel ist öffentlich und darf hier stehen. Er erlaubt nur
+    //  Lesen und neue Ergebnisse eintragen – nichts löschen oder ändern.)
+    const SUPABASE_URL = "https://foiitwpheefmrenudlxz.supabase.co";
+    const SUPABASE_KEY = "sb_publishable__sLpZxQ7nK4AsXWqNC7AWg_dKKUF0-F";
+    const online = SUPABASE_URL !== "" && SUPABASE_KEY !== "";
+
+    // ---------- Teile der Seite ----------
     const spielfeld   = document.getElementById("spielfeld");
     const grosserText = document.getElementById("grosserText");
     const kleinerText = document.getElementById("kleinerText");
-    const bestzeitAnzeige = document.getElementById("bestzeit");
-    const liste = document.getElementById("liste");
+    const meineTop3Liste = document.getElementById("meineTop3");
+    const top5Liste      = document.getElementById("top5");
+    const ganzeListe     = document.getElementById("ganzeRangliste");
+    const nameFenster      = document.getElementById("nameFenster");
+    const ranglisteFenster = document.getElementById("ranglisteFenster");
+    const nameEingabe = document.getElementById("nameEingabe");
+    const nameFehler  = document.getElementById("nameFehler");
 
-    // Der Zustand des Spiels: "start", "warten", "jetzt" oder "fehler"
-    let zustand = "start";
-    let startZeit = 0;      // wann das Feld grün wurde
-    let timer = null;       // der Countdown bis grün
-    let letzteZeiten = [];  // die letzten Ergebnisse
-    let bestzeit = null;
+    // ---------- Zustand des Spiels ----------
+    let zustand = "start";   // "start", "warten", "jetzt" oder "fehler"
+    let startZeit = 0;       // wann das Feld grün wurde
+    let timer = null;        // der Countdown bis grün
+    let meinName = lesen("spielername", "");
+    let meineZeiten = lesen("meineZeiten", []);   // meine 3 besten Zeiten
 
-    // Bestzeit aus dem Browser-Speicher laden (falls vorhanden)
-    try {
-      const gespeichert = localStorage.getItem("bestzeit");
-      if (gespeichert) {
-        bestzeit = Number(gespeichert);
-        bestzeitAnzeige.textContent = bestzeit + " ms";
+    // ---------- Speichern im Browser (nur dieses Gerät) ----------
+    function lesen(schluessel, standard) {
+      try {
+        const wert = localStorage.getItem(schluessel);
+        return wert === null ? standard : JSON.parse(wert);
+      } catch (e) { return standard; }
+    }
+    function schreiben(schluessel, wert) {
+      try { localStorage.setItem(schluessel, JSON.stringify(wert)); } catch (e) {}
+    }
+
+    // ---------- Rangliste: speichern und laden ----------
+    async function ergebnisSpeichern(name, ms) {
+      if (online) {
+        await fetch(SUPABASE_URL + "/rest/v1/ergebnisse", {
+          method: "POST",
+          headers: {
+            "apikey": SUPABASE_KEY,
+            "Content-Type": "application/json",
+            "Prefer": "return=minimal"
+          },
+          body: JSON.stringify({ name: name, ms: ms })
+        });
+      } else {
+        const alle = lesen("rangliste", []);
+        alle.push({ name: name, ms: ms });
+        schreiben("rangliste", alle);
       }
-    } catch (e) { /* Speicher nicht verfügbar – egal */ }
+    }
 
+    // Gibt die besten Spieler zurück: jeder Name nur einmal, mit seiner Bestzeit
+    async function ranglisteLaden(anzahl) {
+      if (online) {
+        const antwort = await fetch(
+          SUPABASE_URL + "/rest/v1/rangliste?select=name,ms&order=ms.asc&limit=" + anzahl,
+          { headers: { "apikey": SUPABASE_KEY } }
+        );
+        if (!antwort.ok) throw new Error("Rangliste nicht erreichbar");
+        return await antwort.json();
+      }
+      const beste = {};
+      for (const e of lesen("rangliste", [])) {
+        if (!(e.name in beste) || e.ms < beste[e.name]) beste[e.name] = e.ms;
+      }
+      return Object.keys(beste)
+        .map(function (name) { return { name: name, ms: beste[name] }; })
+        .sort(function (a, b) { return a.ms - b.ms; })
+        .slice(0, anzahl);
+    }
+
+    // ---------- Listen anzeigen ----------
+    const medaillen = ["🥇", "🥈", "🥉"];
+
+    function listeZeichnen(liste, eintraege, leerText) {
+      liste.innerHTML = "";
+      if (eintraege.length === 0) {
+        const li = document.createElement("li");
+        li.className = "leer";
+        li.textContent = leerText;
+        liste.appendChild(li);
+        return;
+      }
+      eintraege.forEach(function (e, i) {
+        const li = document.createElement("li");
+        if (e.name === meinName) li.className = "ich";
+        const platz = document.createElement("span");
+        platz.className = "platz";
+        platz.textContent = medaillen[i] || (i + 1) + ".";
+        const name = document.createElement("span");
+        name.className = "name";
+        name.textContent = e.name;   // textContent: Namen werden nie als Code ausgeführt
+        const zeit = document.createElement("span");
+        zeit.className = "zeit";
+        zeit.textContent = e.ms + " ms";
+        li.append(platz, name, zeit);
+        liste.appendChild(li);
+      });
+    }
+
+    function meineTop3Zeichnen() {
+      listeZeichnen(
+        meineTop3Liste,
+        meineZeiten.map(function (ms, i) { return { name: (i + 1) + ". Platz", ms: ms }; }),
+        "Noch keine Zeiten – leg los!"
+      );
+    }
+
+    async function top5Zeichnen() {
+      try {
+        listeZeichnen(top5Liste, await ranglisteLaden(5), "Noch niemand in der Rangliste");
+      } catch (e) {
+        listeZeichnen(top5Liste, [], "Rangliste gerade nicht erreichbar");
+      }
+    }
+
+    async function ganzeRanglisteOeffnen() {
+      ranglisteFenster.classList.add("offen");
+      listeZeichnen(ganzeListe, [], "Lade …");
+      try {
+        listeZeichnen(ganzeListe, await ranglisteLaden(100), "Noch niemand in der Rangliste");
+      } catch (e) {
+        listeZeichnen(ganzeListe, [], "Rangliste gerade nicht erreichbar");
+      }
+    }
+
+    // ---------- Name eingeben ----------
+    function nameFensterOeffnen() {
+      nameEingabe.value = meinName;
+      nameFehler.textContent = "";
+      nameFenster.classList.add("offen");
+      nameEingabe.focus();
+    }
+
+    function nameBestaetigen() {
+      const name = nameEingabe.value.trim();
+      if (name.length < 2) {
+        nameFehler.textContent = "Bitte mindestens 2 Zeichen.";
+        return;
+      }
+      if (name !== meinName) {
+        meinName = name;
+        schreiben("spielername", meinName);
+        meineZeiten = [];               // neuer Name = neue eigene Liste
+        schreiben("meineZeiten", meineZeiten);
+      }
+      document.getElementById("spielerName").textContent = meinName;
+      nameFenster.classList.remove("offen");
+      meineTop3Zeichnen();
+      top5Zeichnen();
+    }
+
+    document.getElementById("nameOk").addEventListener("click", nameBestaetigen);
+    nameEingabe.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") nameBestaetigen();
+    });
+    document.getElementById("nameAendern").addEventListener("click", nameFensterOeffnen);
+    document.getElementById("ganzeRanglisteKnopf").addEventListener("click", ganzeRanglisteOeffnen);
+    document.getElementById("ranglisteZu").addEventListener("click", function () {
+      ranglisteFenster.classList.remove("offen");
+    });
+
+    // ---------- Das Spiel ----------
     // Ändert Farbe und Texte des Spielfelds
     function zeige(neuerZustand, gross, klein) {
       zustand = neuerZustand;
@@ -193,42 +465,52 @@
       else if (zustand === "jetzt") {
         // Reaktionszeit messen
         const ms = Math.round(performance.now() - startZeit);
+        if (ms < 100) {
+          // Schneller als 100 ms schafft kein Mensch – das war geraten
+          zeige("fehler", "Geraten! 🤔", "So schnell kann niemand reagieren. Nochmal!");
+          return;
+        }
         zeige("start", ms + " ms", bewertung(ms) + " Klick für die nächste Runde.");
         neuesErgebnis(ms);
       }
     }
 
     // Speichert ein Ergebnis und aktualisiert die Anzeige
-    function neuesErgebnis(ms) {
-      letzteZeiten.unshift(ms);                 // vorne einfügen
-      letzteZeiten = letzteZeiten.slice(0, 5);  // nur die letzten 5 behalten
+    async function neuesErgebnis(ms) {
+      const alteBestzeit = meineZeiten[0];
+      meineZeiten.push(ms);
+      meineZeiten.sort(function (a, b) { return a - b; });
+      meineZeiten = meineZeiten.slice(0, 3);     // nur die 3 besten behalten
+      schreiben("meineZeiten", meineZeiten);
+      meineTop3Zeichnen();
 
-      liste.innerHTML = "";
-      for (const zeit of letzteZeiten) {
-        const eintrag = document.createElement("li");
-        eintrag.textContent = zeit + " ms";
-        liste.appendChild(eintrag);
-      }
-
-      if (bestzeit === null || ms < bestzeit) {
-        bestzeit = ms;
-        bestzeitAnzeige.textContent = ms + " ms";
+      if (alteBestzeit === undefined || ms < alteBestzeit) {
         grosserText.textContent = ms + " ms 🏆";
         kleinerText.textContent = "NEUE BESTZEIT! Klick für die nächste Runde.";
-        try { localStorage.setItem("bestzeit", ms); } catch (e) {}
       }
+
+      try {
+        await ergebnisSpeichern(meinName, ms);
+      } catch (e) { /* Internet weg – dann eben nicht */ }
+      top5Zeichnen();
     }
 
     // Klick mit Maus oder Finger
     spielfeld.addEventListener("pointerdown", klick);
 
-    // Leertaste auf der Tastatur
+    // Leertaste auf der Tastatur (aber nicht, solange ein Fenster offen ist)
     document.addEventListener("keydown", function (e) {
-      if (e.code === "Space") {
+      if (e.code === "Space" && !document.querySelector(".overlay.offen")) {
         e.preventDefault();
         if (!e.repeat) klick();
       }
     });
+
+    // ---------- Beim Laden der Seite ----------
+    document.getElementById("spielerName").textContent = meinName || "…";
+    meineTop3Zeichnen();
+    top5Zeichnen();
+    if (!meinName) nameFensterOeffnen();   // erster Besuch: nach dem Namen fragen
   </script>
 
 </body>
